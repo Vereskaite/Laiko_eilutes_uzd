@@ -1,0 +1,220 @@
+---
+title: "Tsay_Uni_3_skyrius"
+output: html_document
+date: "2023-09-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(fBasics)
+library(markdown)
+library(dplyr)
+library(rugarch)
+library(fGarch)
+library(tseries)
+```
+
+# 1,2,3,4
+Sasiuvinyje
+
+# 7
+# a
+```{r}
+data_3.7 <- read.table("m-3m4608.txt",header=T) 
+# names(data_3.7) <- c("date", "3M")
+Data_3.7 <- data_3.7 %>% 
+  mutate(date = paste0(substr(date,1,4),"-",substr(date,5,6),"-",substr(date,7,8)))
+log_data_3.7 <- log(Data_3.7[,2]+1)  # log returns
+
+#Checking for serial correlations (r)
+
+lag_order <- 6
+ljung_box_test <- Box.test(log_data_3.7, lag = lag_order, type = "Ljung-Box")
+ljung_box_test
+
+lag_order <- 12
+ljung_box_test <- Box.test(log_data_3.7, lag = lag_order, type = "Ljung-Box")
+ljung_box_test
+
+# Checking for ARCH effect (r^2)
+lag_order <- 6
+ljung_box_test <- Box.test(log_data_3.7^2, lag = lag_order, type = "Ljung-Box")
+ljung_box_test
+
+lag_order <- 12
+ljung_box_test <- Box.test(log_data_3.7^2, lag = lag_order, type = "Ljung-Box")
+ljung_box_test
+```
+The Ljung-Box statistics of the squared log residuals shows that both Q(6) and Q(12) have pvalue < 0.05. Thus, there is signiﬁcant ARCH eﬀect in the log return series.
+
+Based on the 5% signiﬁcance level, the log return series has serial correlations and has strong ARCH eﬀects.
+
+
+### b
+```{r}
+plot(pacf(log_data_3.7^2))
+```
+From the plot it seems like we should specify ARCH(2)
+
+```{r}
+m1 <- garchFit(~arma(0,0)+garch(2,0),data=log_data_3.7, trace = FALSE)
+summary(m1)
+
+#Perform acf of model residuals to check model adequacy
+residuals <- residuals(garchFit(~arma(0,0)+garch(2,0),data=log_data_3.7, trace = FALSE))
+acf(residuals)
+# pacf(residuals)
+```
+Acf plot still shows autocorrelation in lag 1 and 2, the model should be adjusted. Considering 10% significance level, the specified model $r_{t} = 0.012 + a_{t}$, $a_{t} = \sigma_{t} \epsilon_{t}$, where $\epsilon_{t} ~ N(0.1)$
+$$ \sigma_{t}^2 =  aprasyti su abiem lagais $$
+
+### c
+```{r}
+# Create GARCH model for in-sample period
+data_3.7_insample <- log_data_3.7[1:750]
+m2 <- garchFit(~arma(0,0)+garch(2,0),data=data_3.7_insample,trace=FALSE)
+summary(m2)
+predict(m2,5)
+```
+
+### d
+We fit ARCH(2)-M model which is $r_{t} = \mu + c \sigma_{t}^2 + a_{t}$, $a_{t} ~ N(0.1)$,
+$\sigma_{t}^2 = \alpha_{0} + \alpha_{1} a_{t-1}^2 + \alpha_{2} a_{t-2}$. c is considered risk premium.
+
+
+```{r}
+#NEVEIKIA
+m3 <- garchOxFit(formula.mean=~arma(0,0),formula.var=~garch(0,2),series=data_3.7_insample,arch.in.mean=T)
+```
+p-value >0.05, therefore under 5% confidence risk premium is not different from 0.
+
+### e
+```{r}
+# will be performed using rugarch, since fGarch doesn't have this option. 
+spec <- ugarchspec(variance.model = list(model = "eGARCH", garchOrder = c(1, 1)),
+                   mean.model = list(armaOrder = c(0, 0), include.mean = TRUE),
+                   distribution.model = "std")
+fit <- ugarchfit(spec, data = data_3.7_insample)
+fit
+ugarchforecast(fit, n.ahead = 5)
+```
+
+Leverege effect and asymmetry parameters are statistically insignificant, therefore there doesn't exist asymettry and EGARCH model is not correct model for the selected data.
+
+Performed 5 step ahead forecast, but it shouldn't be trusted since model is not adequate.
+
+
+# 8
+### a
+First, we check log-returns to evaluate which lags to use
+```{r}
+data_3.8 <- read.table("m-gmsp5008.txt",header=T) 
+Data_3.8 <- data_3.8 %>% 
+  mutate(date = paste0(substr(date,1,4),"-",substr(date,5,6),"-",substr(date,7,8)))
+log_data_3.8 <- log(Data_3.8[,2:3]+1) # log returns
+
+lag_order <- 6
+ljung_box_test <- Box.test(log_data_3.8[,1], lag = 6, type = "Ljung-Box")
+ljung_box_test
+
+pacf(log_data_3.8[,1])
+
+```
+There exists serial dependence in log returns. Checking PACF shows that there are correlations in a few higher lags (14,25) and slight correlation in first two lags. Decide to proceed with mean model ARMA(0,0) and move to GARCH.
+
+```{r}
+spec_3.8.1 <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1,1)),
+                         mean.model = list(armaOrder = c(0,0), include.mean = TRUE),
+                         distribution.model = "norm")
+fit_3.8.1 <- ugarchfit(spec_3.8.1, log_data_3.8[,1])
+fit_3.8.1
+```
+All parameters statistically significant. Can run acf to check adequacy. Also could run normality test, see if assumption is correct.
+
+### b
+Vel tas GARCH-M, nezinau kaip runinti
+
+### c
+```{r}
+spec_3.8.3 <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1,1)),
+                         mean.model = list(armaOrder = c(0,0), include.mean = TRUE),
+                         distribution.model = "std")
+fit_3.8.3 <- ugarchfit(spec_3.8.3, log_data_3.8[,1])
+fit_3.8.3
+```
+
+Checking hypothesis if degrees of freedom = 6. Calculating t statistic [9.4 (estimated degree of freedom) - 6 (checked degrees)] / 2.96 (std. error) = 1,15 < 1.96, therefore we can't reject null hypothesis that degrees of freedom = 6.
+
+### d
+
+```{r}
+spec_3.8.4 <- ugarchspec(variance.model = list(model = "eGARCH", garchOrder = c(1, 1)),
+                   mean.model = list(armaOrder = c(0, 0), include.mean = TRUE),
+                   distribution.model = "norm")
+fit_3.8.4 <- ugarchfit(spec_3.8.4, data = log_data_3.8[,1], solver = "hybrid")
+fit_3.8.4
+```
+All parameters are statistically significant, there exists asymmetry.
+
+### e
+```{r}
+fc_3.8.1 <- ugarchforecast(fit_3.8.1, n.ahead = 6)
+fc_3.8.3 <- ugarchforecast(fit_3.8.3, n.ahead = 6)
+fc_3.8.4 <- ugarchforecast(fit_3.8.4, n.ahead = 6)
+
+FC_1 <- as.data.frame(fc_3.8.1@forecast$sigmaFor)
+FC_3 <- as.data.frame(fc_3.8.3@forecast$sigmaFor)
+FC_4 <- as.data.frame(fc_3.8.4@forecast$sigmaFor)
+
+comparison <- FC_1 %>% bind_cols(FC_3) %>% bind_cols(FC_4)
+names(comparison) <- c("GARCH-norm", "GARCH-stjud","EGARCH")
+comparison
+```
+EGARCH decays faster.
+
+# 6
+a dalyje, tikrinam acf, how to remove autocorrelation - add MA part to mean equation of returns
+
+# 10
+checking summer effect. Prideti dummy variable prie paprasto GARCH, 1 - summer, 0 - ne.
+checking GM effect - prideti kaip papildoma regresoriu i GARCH (bet t-1).
+
+# 14
+### a
+Ar cia reikia ideti tik 3 ir 5 lagus i modeli? Per "fixed" kazkaip? 
+```{r}
+#AR(5)-GARCH(1,1)
+data_3.14 <- read.table("d-gmsp9908.txt",header=T) 
+Data_3.14 <- data_3.14 %>% 
+  mutate(date = paste0(substr(date,1,4),"-",substr(date,5,6),"-",substr(date,7,8)))
+log_data_3.14 <- log(Data_3.8[,2:3]+1)*100 # log returns
+
+spec_3.14.1 <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                   mean.model = list(armaOrder = c(5, 0), include.mean = TRUE),
+                   distribution.model = "ged")
+spvol <- ugarchfit(spec_3.14.1, data = log_data_3.14[,2])
+```
+Gaunam AR(5) ir GARCH(1,1) forma S&P indeksui. Toliau b dalyje, sia sigma pridesim kaip exogenin i kintamaji i GARCH modeli GM grazoms.
+
+### b 
+ARMA(0,0) GARCH(1,1) + exogeninis (sigma S&P indekso)
+
+```{r}
+#reikia issiaiskinti kaip prideti external regressor i ugarchspec variance model! turetu buti df, reiktu gauti sigma values
+
+# pavyzdys https://stackoverflow.com/questions/54293924/rugarch-external-regressors-in-mean-variance
+spec_3.14.2 <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1),
+                                                external.regressors = spvol),
+                   mean.model = list(armaOrder = c(5, 0), include.mean = TRUE),
+                   distribution.model = "ged")
+spvol_2 <- ugarchfit(spec_3.14.12, data = log_data_3.14[,2])
+
+#check adequacy, residualsu ljung box, acf/pacf
+#stebim ar koeficientas bus reiksmingas, turbut, kad ne 
+
+````
+The inclusion of S&P volatility serves as a proxy for the market volatility. However, thismarket volatility does not contribute signﬁcantly to the modeling of GM stock returns.
+
+# 15
+Labai panasi eiga. Isvada:
+No, the estimate of the parameter of ˆztis not signiﬁcantly diﬀerent from zero, with at-value of 0.083. Hence, the volatility of the GM returns does not have explanatorypower in the market volatility (in this case the S&P volatility.)

@@ -1,0 +1,100 @@
+---
+title: "1 skyriaus uzdaviniai"
+output: html_document
+date: "2023-09-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(fBasics)
+library(markdown)
+library(dplyr)
+```
+
+# 1
+### a
+```{r}
+data_1.1 <- read.table("d-3stock.txt",header=F) 
+names(data_1.1) <- c("date", "axp", "cat", "sbux")
+Data_1.1 <- data_1.1 %>% 
+  mutate(date = paste0(substr(date,1,4),"-",substr(date,5,6),"-",substr(date,7,8)))
+sdata_1 <- Data_1.1[,2:4]*100  # simple returns in percentages
+head(sdata_1)
+basicStats(sdata_1) #sample mean, st dev, skewness, excess kurtosis, min, max
+```
+
+### b
+```{r}
+lData_1.1 <- log(Data_1.1[,2:4]+1) #logreturns
+head(lData_1.1)
+```
+
+### c
+```{r}
+lData_1.1_perc <- lData_1.1*100 #log-returns in percentages
+basicStats(lData_1.1_perc)
+```
+
+### d
+```{r}
+t.test(lData_1.1[,1]) #axp
+t.test(lData_1.1[,2]) #cat
+t.test(lData_1.1[,3]) #sbux
+```
+For 3 selected stock returns, p-value > 0.05, therefore with 5% significance level test fails to reject hypothesis, that expected means are equal to 0.
+
+# 2
+### a
+```{r}
+data_1.2 <- read.table("m-ibm3dx7503.txt",header=F) 
+names(data_1.2) <- c("date", "ibm", "vw", "ew","sp")
+Data_1.2 <- data_1.2 %>% 
+  mutate(date = paste0(substr(date,1,4),"-",substr(date,5,6),"-",substr(date,7,8)))
+sdata_2 <- Data_1.2[,2:5]*100  # simple returns in percentages
+head(sdata_2)
+basicStats(sdata_2) #sample mean, st dev, skewness, excess kurtosis, min, max
+```
+
+Toliau tas pats kaip 1 uždavinyje.
+
+# 3
+### a
+Average annual return = sample mean * 12 = (sum of log returns)/(number of years)
+```{r}
+lsp <- log(Data_1.2[,5]+1)
+annual_return_sp <- sum(lsp)/(2003-1975+1) #average annual log return of S&P
+annual_return_sp
+```
+
+### b
+```{r}
+exp(1*annual_return_sp*(2003-1975+1))
+```
+Value of the investment would be 16.22 USD.
+
+# 4
+### a
+```{r}
+data_1.4 <- Data_1.1[,1:2]
+ldata_1.4 <- log(data_1.4[,2]+1)
+s1 <- skewness(ldata_1.4)
+t1 <- s1/sqrt(6/length(ldata_1.4)) #Compute test statistic
+t1
+pv1 <- 2*(1-pnorm(abs(t1))) # Compute p-value.
+pv1
+```
+
+`H0: S(r)=0, H1: S(r) != 0, |t-ratio| = 1.26 < 1.96`, also `p-value = 0.2 > 0.05`, therefore test fails to reject null hyphothesis, that skewness is not different from 0. 
+
+### b
+```{r}
+k1 <- kurtosis(ldata_1.4)
+t2 <- (k1-3)/sqrt(24/length(ldata_1.4)) #Compute test statistic
+t2
+pv2 <- 2*(1-pnorm(abs(t2))) # Compute p-value.
+pv2
+```
+`H0: K(r)=0, H1: K(r) != 0, |t-ratio| = 4.98 > 1.96`, also `p-value < 0.05`, therefore test rejects null hyphothesis, indicating that kurtosis is different from 0. 
+
+# 5
+### a

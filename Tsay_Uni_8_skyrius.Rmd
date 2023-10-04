@@ -1,0 +1,271 @@
+---
+title: "Tsay_Uni_8_skyrius"
+output: html_document
+date: "2023-09-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(fBasics)
+library(markdown)
+library(dplyr)
+library(rugarch)
+library(fGarch)
+library(tseries)
+library(MTS)
+library(vars)
+library(ggplot2)
+library(urca)
+library(tsDyn)
+```
+
+# 1
+### a
+
+```{r}
+data_8.1 <- read.table("m-mrk2vw.txt",header=T) 
+# names(data_3.7) <- c("date", "3M")
+Data_8.1 <- data_8.1 %>% 
+  mutate(date = paste0(substr(date,1,4),"-",substr(date,5,6),"-",substr(date,7,8)))
+
+# Calculate the sample mean of log returns
+mean_returns <- apply(Data_8.1[, 2:7], MARGIN = 2,FUN = mean)
+mean_returns
+
+# st.dev
+st_dev<- apply(Data_8.1[, 2:7], MARGIN = 2,FUN = sd)
+st_dev
+
+# Calculate the covariance matrix of log returns
+cov_matrix <- cov(Data_8.1[, 2:7])
+cov_matrix
+
+# Calculate the correlation matrix of log returns
+cor_matrix <- cor(Data_8.1[, 2:7])
+cor_matrix
+
+```
+
+Prideti komentaru, kas ka reiskia, kokios izvalgos
+
+### b
+```{r}
+# Perform the multivariate Ljung-Box test
+portmanteau_test <- mq(Data_8.1[, 2:7], lag = 6)
+```
+Therefore, one rejects the null hyphthesis of no serial or cross-sectional correlations in the data
+
+### c
+Because of the signiﬁcance of serial correlations in Part(b), there is lead-lag relationship among the six return series.
+
+# 2
+bivariate autoregressive model
+pradzioj M(i) statistica ir AIC/BIC budu surandam lag'a
+runinam koda 
+
+```{r}
+var_model <- VAR(ts_data, p = 2)
+
+# Summary of the VAR model
+summary(var_model)
+
+#VMA
+
+# Create a lag operator polynomial
+lag_polynomial <- VARrep(1, p = q, type = "VMA")
+
+# Fit the VMA model
+vma_model <- VAR(ts_data, type = "none", lag.l = lag_polynomial)
+
+# Summary of the VMA model
+summary(vma_model)
+```
+Palyginti sigmas, ar panasios.
+
+Del strukturines formos. Fittinta ir sutvarkyta modeli keicia.
+
+Palikti tik significant lagai:
+
+```{r}
+data <- matrix(data = rnorm(200), nrow = 100, ncol = 2)
+ts_data <- ts(data, start = c(2000, 1), frequency = 12)
+var_model <- VAR(ts_data, p = 3)  # Example VAR model with 3 lags
+
+# Specify the equation and lags to keep
+equation_to_modify <- 1  # Replace with the equation index you want to modify (e.g., the first equation)
+lags_to_keep <- 1:2     # Replace with the specific lags you want to keep (e.g., lags 1 and 2)
+
+# Set the coefficients of unwanted lags to zero
+for (lag in 1:var_model$p) {
+  if (lag %in% lags_to_keep) {
+    next  # Keep the specified lags, skip the rest of the loop
+  }
+  var_model$varresult$A[, , equation_to_modify][, lag] <- 0
+}
+
+# Optionally, you can update the VAR model name to reflect the changes
+var_model$name <- paste("VAR with specific lags for equation", equation_to_modify)
+
+# Summary of the modified VAR model
+summary(var_model)
+```
+
+strukturine forma:
+choleskio dekompozicija identifyina strukturinius sokus:
+
+```{r}
+# Example: Estimating a structural VAR with Cholesky decomposition
+# Assuming you have already estimated a VAR model named 'var_model'
+
+# Perform Cholesky decomposition to identify structural shocks
+svar_model <- SVAR(var_model, type = "Cholesky")
+
+# Summary of the structural VAR model
+summary(svar_model)
+
+# Plot the impulse response functions
+plot(svar_model)
+
+```
+
+# 4
+```{r}
+# Perform the threshold cointegration test
+toda_test_result <- toda.test(ts1, ts2)
+
+# Print the test results
+print(toda_test_result)
+```
+
+if p<0.05 they are threshold cointegrated. We further build thershold model
+
+```{r}
+ts1 <- cumsum(rnorm(n))
+ts2 <- cumsum(rnorm(n))
+# ar cia tikrai cumsum reikia?
+
+# Estimate the threshold bivariate model
+threshold_model <- TVECM(cbind(ts1, ts2), lag = 1, threshold = "linearity")
+
+# Print the model summary
+print(summary(threshold_model))
+
+# Plot the threshold effects
+plot(threshold_model)
+```
+
+
+
+# 7
+
+### a
+```{r}
+data_8.7 <- read.table("m-gs1n3-5304.txt",header=F) 
+names(data_8.7) <- c("Y1", "Y3", "year", "month", "day")
+Data_8.7 <- data_8.7 %>% 
+  mutate(date = paste0(year,"-",month,"-",day),
+         date = as.Date(date, format = "%Y-%m-%d")
+         # Y1 = log(Y1),
+         # Y3 = log(Y3)
+         ) %>% 
+  dplyr::select(Y1,Y3,date)
+
+ts_Data_8.7 <- ts(Data_8.7[,1:2])
+plot(ts_Data_8.7)
+
+#In order to define lag order we use AIC/BIC
+VARselect(ts_Data_8.7, lag.max = 6, type = "none")
+
+var_1 <- VAR(ts_Data_8.7,p=4)
+summary(var_1)
+
+acf(residuals(var_1))
+
+# residuals show that model could be further improved, but it seems to capture the dynamic struxture of the data reasonably well.
+
+### sasiuvinyje turiu apsirasiusi formas. Isvada - unidirectional. 370 psl knygos yra grazus aprasymas
+
+
+# Compute the impulse response functions (IRFs)
+irf_results <- irf(var_1, impulse = "Y1", response = c("Y1", "Y3"), n.ahead = 6)
+
+# Plot the IRFs
+plot(irf_results)
+```
+Aprasyti ka rodo grafikas. Kiek lagu islieka soko itaka kuriam kintamajam ir kokiam lygyje.
+
+### c
+```{r}
+forecast_horizon <- 12
+forecast_results <- predict(var_1, n.ahead = forecast_horizon)
+
+### reikia prideti 
+# Create a data frame for the forecasted values and confidence intervals
+forecast_data <- data.frame(
+  Period = 1:forecast_horizon,
+  # Actual = Data_8.7[,1], # Replace with your actual Y1 data
+  Forecast = forecast_results$fcst$Y1[,1],
+  Lower_CI = forecast_results$fcst$Y1[,2],
+  Upper_CI = forecast_results$fcst$Y1[,3]
+)
+
+# Create the ggplot2 plot
+ggplot(forecast_data, aes(x = Period)) +
+  # geom_line(aes(y = Actual), color = "black", linetype = "solid") +
+  geom_line(aes(y = Forecast), color = "red", linetype = "dashed") +
+  geom_ribbon(aes(ymin = Lower_CI, ymax = Upper_CI), fill = "blue", alpha = 0.3) +
+  labs(
+    title = "Forecasted Values for Y1",
+    y = "Y1",
+    x = "Period"
+  ) +
+  theme_minimal()
+
+#reiketu prideti grafika
+```
+
+### d
+#augmented dickey fuller test irgi variantas
+```{r}
+# Specify the presence of restricted constant terms
+const_vec <- c("const", "const")
+
+# Perform Johansen cointegration test with restricted constant terms
+johansen_test_result <- ca.jo(data.frame(ts_Data_8.7[,1], ts_Data_8.7[,2]), type = "eigen", ecdet = "const", K = 2)
+
+
+# Print test results
+summary(johansen_test_result)
+plot(johansen_test_result)
+```
+
+For hypthosesis r=0 test statistic is grater than critical value therefore there is no integration
+Negerai, turetu buti cointegrate
+
+
+### e
+```{r}
+vecm <- tsDyn::VECM(ts_Data_8.7, lag=2)
+summary(vecm)
+
+vecm$beta
+```
+
+Kaip surasyti matematine forma (sasiuvinyje)
+
+The ECT matrix and its coefficients indicate how each variable adjusts back to its long-run equilibrium when deviations occur. If beta1  and beta2  are both statistically significant and have opposite signs, it suggests cointegration between the variables, and the ECT represents the speed of adjustment toward the equilibrium relationship.
+
+### f
+```{r}
+forecast_results_vecm <- predict(vecm, n.ahead = forecast_horizon)
+#reiketu dar grafiko
+```
+
+### g
+```{r}
+forecast_results
+forecast_results_vecm
+
+#ideti bendrai palyginti grafike. kuris duoda didesni forecasta ir kuris mazesni standard error?
+
+```
