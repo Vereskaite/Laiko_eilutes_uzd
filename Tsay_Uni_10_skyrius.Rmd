@@ -1,0 +1,213 @@
+---
+title: "Tsay_Uni_10_skyrius"
+output: html_document
+date: "2023-10-11"
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(fBasics)
+library(markdown)
+library(dplyr)
+library(rugarch)
+library(fGarch)
+library(tseries)
+library(MTS)
+library(vars)
+library(ggplot2)
+library(urca)
+library(tsDyn)
+library(zoo)
+library(rmgarch)
+# library(ccgarch2, lib = '/private/var/folders/_p/tm4_6__j08j511mb0zbmlbg40000gn/T/Rtmp9DllBh/downloaded_packages')
+
+```
+
+# 1
+```{r}
+data_10.1<- read.table("m-ibmhpqsp6208.txt",header=T) 
+# names(data_3.7) <- c("date", "3M")
+Data_10.1 <- data_10.1 %>% 
+  mutate(date = paste0(substr(date,1,4),"-",substr(date,5,6),"-",substr(date,7,8)))
+
+plot(ts(Data_10.1)[,2:4])
+
+# Define a multivariate GARCH model specification
+ help(EWMAvol)
+ ewma <- EWMAvol(Data_10.1[,2:4], lambda = -1)
+plot(ts(ewma$Sigma.t))
+```
+Outcome: with EWMA volatility is smoother. Estimated lambda is 0.9672
+
+# 2
+
+```{r}
+# var_model <- VAR(Data_10.1[,2:3], p = 1)
+
+# Estimate a diagonal VEC model with lag order 1
+diagonal_vec_model <- VECM(Data_10.1[,2:3], lag = 1)
+summary(diagonal_vec_model)
+
+#fitted volatility (ne tas...)
+plot(ts(diagonal_vec_model$fitted.values), type = "line")
+
+
+#Is the model adequate?
+acf(diagonal_vec_model$residuals)
+#Ljungbox
+
+Box.test(ts(diagonal_vec_model$residuals)[,1], lag = 1, type = "Ljung")
+Box.test(ts(diagonal_vec_model$residuals)[,1]^2, lag = 1, type = "Ljung")
+
+Box.test(ts(diagonal_vec_model$residuals)[,2], lag = 1, type = "Ljung")
+Box.test(ts(diagonal_vec_model$residuals)[,2]^2, lag = 1, type = "Ljung")
+
+#p-value > 0.05 therefore we can't reject null hypothesis saying that there is no serial correlation
+#between residuals. Altho there is in squared values.
+
+#Multivariate Q statistic
+portmanteau_test <- mq(diagonal_vec_model$residuals, lag = 6)
+portmanteau_test <- mq(diagonal_vec_model$residuals^2, lag = 6)
+#multivariate statistic rejects VECM model
+
+#plot residuals 
+acf(diagonal_vec_model$residuals)
+# there is autocorrelation in first few lags. Model has to be improved
+```
+
+# 3
+```{r}
+speclist <- multispec(c(ugarchspec(distribution = "norm"), ugarchspec(distribution = "norm")))
+bekk_spec <- dccspec(uspec = speclist,
+                     dccOrder = c(1, 1),
+                     model = "BEKK",
+                     distribution = "mvnorm")
+
+bekk_model <- dccfit(bekk_spec, data = Data_10.1[,3:4])
+#issiimti lower triangular matrix is parametru listinamu
+
+#fitted volatility and time-varying correlations
+plot(bekk_model) #conditional sigma and correlation
+```
+
+#4 
+```{r}
+speclist <- multispec(c(ugarchspec(distribution = "norm"), ugarchspec(distribution = "norm"), ugarchspec(distribution = "norm")))
+ccc_spec <- dccspec(uspec = speclist,
+                    dccOrder = c(1, 1), model = "CCC", distribution = "mvnorm")
+
+ccc_model <- dccfit(ccc_spec, data = Data_10.1[,2:4])
+
+#volatilities
+plot(ts(ccc_model@model$sigma))
+
+conditional_correlations <- rcor(ccc_model)
+rowMeans(conditional_correlations)
+#correlations
+ccc_model@mfit$R #imti pirma. Simetrinis
+
+ccc_model@mfit$R[[564]]
+
+#fitted model pavyzdys grazus solutionuose
+
+# forecastinimas
+forecast_horizon <- 1  # Specify the forecast horizon (1 for 1 step ahead)
+ccc_forecast <- dccforecast(ccc_model, n.ahead = forecast_horizon)
+
+# Extract the forecasted conditional covariance matrix
+forecasted_covariance_matrix <- ccc_forecast@mforecast$R
+```
+
+# 5
+Toks pat kaip 4
+
+# 6
+
+```{r}
+speclist <- multispec(c(ugarchspec(distribution = "norm"), ugarchspec(distribution = "norm"), ugarchspec(distribution = "norm")))
+dcc_spec <- dccspec(uspec = speclist,
+                        dccOrder = c(1, 1),
+                        distribution = "mvnorm")
+
+# In this case, set it to 'DCC' for Dynamic Conditional Correlation
+
+# Estimate the Cholesky GARCH model
+DCC_model <- dccfit(dcc_spec, data = Data_10.1[,2:4])
+
+plot(ts(DCC_model@model$sigma))
+# View the model summary
+summary(DCC_model)
+
+DCC_model@mfit$R
+
+```
+
+#7
+Pavyzdys solutionuose.
+Paaiskinimas knygoj 466 psl.
+Yra sasiuviny uzrasu
+
+forecastinimo dalis: issitraukiam paskutini sigma11, sigma22, a1, a2, isitatom i apibrezta GARCHa ir gaunam final matrica.
+
+
+#8 
+Panasiai kaip 7, tik skiriasi rho forma. Cia cholesky deomposition.
+
+#9
+```{r}
+speclist <- multispec(c(ugarchspec(distribution = "norm"), ugarchspec(distribution = "norm")))
+dcc_spec <- dccspec(uspec = speclist,
+                        dccOrder = c(1, 1),
+                        distribution = "mvnorm")
+
+# In this case, set it to 'DCC' for Dynamic Conditional Correlation
+
+# Estimate the Cholesky GARCH model
+DCC_model <- dccfit(dcc_spec, data = Data_10.1[,3:4])
+
+# Obtain the conditional covariance matrix from the model
+cov_matrix <- rcov(DCC_model)
+
+# Perform Cholesky decomposition
+chol_decomp <- chol(cov_matrix)
+
+# The diagonal of chol_decomp contains the standard deviations of the two series
+conditional_std_devs <- sqrt(diag(chol_decomp))
+
+# The lower triangle of chol_decomp contains the Cholesky factorization of the conditional correlation matrix
+conditional_correlations <- chol_decomp / (conditional_std_devs %*% t(conditional_std_devs))
+
+# Print the conditional standard deviations
+print("Conditional Standard Deviations:")
+print(conditional_std_devs)
+
+# Print the conditional correlation matrix
+print("Conditional Correlation Matrix:")
+print(conditional_correlations)
+```
+
+# 9
+toks pat kaip 8, tik 3 dimensions
+
+
+# 10
+## Univariate
+Knygoj 481 psl
+fit univariate GARCH for each time series
+calculate r1, sigma1^2, r2, sigma2^2, rho forecastui (t.y. isistatant paskutines datos values)
+q1 = r1 - 1.65*(sigma1^2)^(1/2)
+q2 = ...
+
+VaR1 = 1000000*q1/100
+VaR = sqrt(VaR1^2 + VaR2^2)
+
+## Constant Correlation Bivariate
+viskas tas pats tik fittinam diagonal bivariate GARCH (kaip 10.2)
+cia kitoks rho ir turim gauti forecastintas vertes is to modelio
+
+## Time-varying correlation model
+kaip 10.8, fittinam per cholesky decomposition. 
+Gaunam forecastintas vertes r1, r2, g11, q21, g22.
+Is ju gaunam sigma1, sigma21, sigma2 ir corr.coef.
+Toliau skaiciuojam VaR kaip pirmai.

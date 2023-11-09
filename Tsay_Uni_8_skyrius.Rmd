@@ -230,7 +230,8 @@ ggplot(forecast_data, aes(x = Period)) +
 # Specify the presence of restricted constant terms
 const_vec <- c("const", "const")
 
-# Perform Johansen cointegration test with restricted constant terms
+# Perform Johansen cointegration test with restricted constant terms (no drift in the mean)
+#ideja, tikrinti rank(Pi)
 johansen_test_result <- ca.jo(data.frame(ts_Data_8.7[,1], ts_Data_8.7[,2]), type = "eigen", ecdet = "const", K = 2)
 
 
@@ -239,21 +240,19 @@ summary(johansen_test_result)
 plot(johansen_test_result)
 ```
 
-For hypthosesis r=0 test statistic is grater than critical value therefore there is no integration
-Negerai, turetu buti cointegrate
 
 
 ### e
 ```{r}
 vecm <- tsDyn::VECM(ts_Data_8.7, lag=2)
 summary(vecm)
-
-vecm$beta
 ```
 
 Kaip surasyti matematine forma (sasiuvinyje)
 
 The ECT matrix and its coefficients indicate how each variable adjusts back to its long-run equilibrium when deviations occur. If beta1  and beta2  are both statistically significant and have opposite signs, it suggests cointegration between the variables, and the ECT represents the speed of adjustment toward the equilibrium relationship.
+
+Error Correction Term (ECT): The ECT represents the speed at which the system corrects deviations from the long-term equilibrium. A significant ECT coefficient indicates the strength of this adjustment. For instance, if the ECT coefficient for GDP in the consumption equation is -0.2, it suggests that in the short term, if consumption deviates from the long-term equilibrium by 1%, it will adjust by approximately 0.2% towards the equilibrium in the following period.
 
 ### f
 ```{r}
@@ -266,6 +265,7 @@ forecast_results_vecm <- predict(vecm, n.ahead = forecast_horizon)
 forecast_results
 forecast_results_vecm
 
-#ideti bendrai palyginti grafike. kuris duoda didesni forecasta ir kuris mazesni standard error?
 
+
+#ideti bendrai palyginti grafike. kuris duoda didesni forecasta ir kuris mazesni standard error?
 ```
